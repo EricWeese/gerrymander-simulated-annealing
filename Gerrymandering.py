@@ -9,7 +9,7 @@ from random import shuffle
 import time
 
 MAX_X, MAX_Y = 100, 100
-NUM_CITIES = 7
+NUM_CITIES = 3
 MAX_POPULATION = 1000
 DISTRICT_CENTERS = [(np.random.randint(MAX_Y), np.random.randint(MAX_X)) for col in range(NUM_CITIES)]
 
@@ -93,8 +93,31 @@ def getBoundaryPixels(map):
         r +=1
     return boundaryPixels
 
-def randFlipPixels(pixels):
-    for pixel in pixels:
+def checkForDisconnectedPixels(pixel):
+    neighbors = []
+    neighbors.append(voterMap[pixel.row+1][pixel.col]) if pixel.row != MAX_Y-1 else None
+    neighbors.append(voterMap[pixel.row-1][pixel.col]) if pixel.row != 0 else None
+    neighbors.append(voterMap[pixel.row][pixel.col+1]) if pixel.col != MAX_X-1 else None
+    neighbors.append(voterMap[pixel.row][pixel.col-1]) if pixel.col != 0 else None
+    disconnected = False
+    for neighbor in neighbors:
+        newNeighbors = []
+        newNeighbors.append(voterMap[neighbor.row+1][neighbor.col]) if neighbor.row != MAX_Y-1 else None
+        newNeighbors.append(voterMap[neighbor.row-1][neighbor.col]) if neighbor.row != 0 else None
+        newNeighbors.append(voterMap[neighbor.row][neighbor.col+1]) if neighbor.col != MAX_X-1 else None
+        newNeighbors.append(voterMap[neighbor.row][neighbor.col-1]) if neighbor.col != 0 else None
+        singleDisconnected = True
+        for newNeighbor in newNeighbors:
+            # If it is connected, set singleDisconnected to false
+            if newNeighbor.color == neighbor.color:
+                singleDisconnected = False 
+        if singleDisconnected:
+            disconnected = True
+    return disconnected
+
+def randFlipPixels():
+    shuffle(boundaryPixels)
+    for pixel in boundaryPixels:
         # Colors border random colors 
         # pixel.color = [np.random.randint(255), np.random.randint(255), np.random.randint(255)]
         neighbors = []
@@ -104,17 +127,24 @@ def randFlipPixels(pixels):
         neighbors.append(voterMap[pixel.row][pixel.col-1]) if pixel.col != 0 else None
         shuffle(neighbors)
         for neighbor in neighbors:
-            if neighbor.color != pixel.color:
-                # Removing pixel from old district
-                DISTRICTS[DISTRICT_COLORS_DICT[pixel.color]].removePixel(pixel.id)
+            if neighbor.color != pixel.color and pixel in boundaryPixels:
+                previousColor = pixel.color
+                
                 pixel.color = neighbor.color
-                # Adding pixel to new district
-                DISTRICTS[DISTRICT_COLORS_DICT[pixel.color]].addPixel(pixel)
+                if(checkForDisconnectedPixels(pixel)):
+                    pixel.color = previousColor
+                else:
+                    # Removing pixel from old district
+                    DISTRICTS[DISTRICT_COLORS_DICT[pixel.color]].removePixel(pixel.id)
+                    # Adding pixel to new district
+                    DISTRICTS[DISTRICT_COLORS_DICT[pixel.color]].addPixel(pixel)
                 for boundaryPixel in boundaryPixels:
-                    if boundaryPixel.id == pixel.id:
+                    if boundaryPixel.id == neighbor.id:
                         boundaryPixels.remove(boundaryPixel)
-                boundaryPixels.append(neighbor)
-
+                for newNeighbor in neighbors:
+                    if newNeighbor is not neighbor and newNeighbor not in boundaryPixels:
+                        boundaryPixels.append(newNeighbor)
+                
 
 
 # Takes in voterMap and converts to visual RGB map
@@ -170,7 +200,7 @@ plt.suptitle("Voronoi Diagram for Cities")
 
 
 def update(frame):
-    randFlipPixels(boundaryPixels)
+    randFlipPixels()
     visualMap = getVisualMap(voterMap)
     visualMap_np = np.array(visualMap, dtype=np.uint8)
     visualMap = visualMap_np.tolist()
@@ -188,8 +218,8 @@ def update(frame):
     for i, label in enumerate(ax1.get_xticklabels()):
         label.set_color([x/255.0 for x in districtSplits[i][2]])
 
-
     return ax2, ax1, 
 
-ani = FuncAnimation(fig, update, interval=500, blit=False, cache_frame_data=False)
+
+ani = FuncAnimation(fig, update, interval=1000, blit=False, cache_frame_data=False)
 plt.show()

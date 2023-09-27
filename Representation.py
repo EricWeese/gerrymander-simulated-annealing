@@ -24,7 +24,7 @@ class District:
         self.totalRep = totalRep
     def addPixel(self, Pixel):
         self.pixels.append(Pixel)
-        self.totalDem += Pixel.dem*1.3
+        self.totalDem += Pixel.dem
         self.totalRep += Pixel.rep
         self.totalPopulation += Pixel.population
         self.checkMajority()
