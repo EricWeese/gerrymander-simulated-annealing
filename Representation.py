@@ -42,6 +42,6 @@ class District:
         self.majority = 1 if self.totalDem > self.totalRep else 0
     
     def printInfo(self):
-        print(f'Color: {self.color}\tSize: {len(self.pixels)}\tTotalPop: {self.totalPopulation}\tTotalDem: {self.totalDem} \tTotalRep: {self.totalRep} \tSplit: {self.totalDem/(self.totalDem+self.totalRep)}')
+        print(f'Color: {self.color}\tSize: {len(self.pixels)}\tTotalPop: {self.totalPopulation} \tTotalDem: {self.totalDem} \tTotalRep: {self.totalRep} \tSplit: {self.totalDem/(self.totalDem+self.totalRep)}')
         
          

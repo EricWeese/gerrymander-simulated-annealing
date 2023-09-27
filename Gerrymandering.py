@@ -11,8 +11,10 @@ MAX_X, MAX_Y = 50, 50
 NUM_CITIES = 5
 MAX_POPULATION = 1000
 DISTRICT_CENTERS = [(np.random.randint(MAX_Y), np.random.randint(MAX_X)) for col in range(NUM_CITIES)]
+
 DISTRICTS = []
-COLORS = [[np.random.randint(255), np.random.randint(255), np.random.randint(255)] for col in range(NUM_CITIES)]
+DISTRICT_COLORS = [(np.random.randint(255), np.random.randint(255), np.random.randint(255)) for col in range(NUM_CITIES)]
+DISTRICT_COLORS_DICT = {}
 
 
 # Generates intial map with random pop, dem voters, rep voters, and black pixels
@@ -33,7 +35,9 @@ def generateBlankMap():
 
 def generateDistricts():
     for i, district in enumerate(DISTRICT_CENTERS):
-        DISTRICTS.append(District(district[0], district[1], COLORS[i], [], 0, 0, 0))
+        DISTRICTS.append(District(district[0], district[1], DISTRICT_COLORS[i], [], 0, 0, 0))
+        DISTRICT_COLORS_DICT[DISTRICT_COLORS[i]] = i
+    print(DISTRICT_COLORS_DICT)
 
 
 # Generates voronoi diagram by coloring each pixel in a district a different color
@@ -51,7 +55,7 @@ def generateVoronoiDiagram(map):
                     nearest_district = i
             
             DISTRICTS[nearest_district].addPixel(currPixel)
-            voterMap[row][col].color = COLORS[nearest_district]
+            voterMap[row][col].color = DISTRICT_COLORS[nearest_district]
     # Coloring centers black
     # for district in DISTRICT_CENTERS:
     #     voterMap[district[0]][district[1]].color = [0, 0, 0]
@@ -91,20 +95,26 @@ def getBoundaryPixels(map):
 
 def randFlipPixels(pixels):
     for pixel in pixels:
-        pixel.color = [np.random.randint(255), np.random.randint(255), np.random.randint(255)]
+        # Colors border random colors 
+        # pixel.color = [np.random.randint(255), np.random.randint(255), np.random.randint(255)]
         neighbors = []
         neighbors.append(voterMap[pixel.row+1][pixel.col]) if pixel.row != MAX_Y-1 else None
         neighbors.append(voterMap[pixel.row-1][pixel.col]) if pixel.row != 0 else None
         neighbors.append(voterMap[pixel.row][pixel.col+1]) if pixel.col != MAX_X-1 else None
         neighbors.append(voterMap[pixel.row][pixel.col-1]) if pixel.col != 0 else None
-        # print(neighbors)
         shuffle(neighbors)
         for neighbor in neighbors:
             if neighbor.color != pixel.color:
+                # Removing pixel from old district
+                DISTRICTS[DISTRICT_COLORS_DICT[pixel.color]].removePixel(pixel.id)
                 pixel.color = neighbor.color
-                for boundaryPixel in boundaryPixels:
-                    if boundaryPixel.id == pixel.id:
-                        boundaryPixels.remove(boundaryPixel)
+                # Adding pixel to new district
+                DISTRICTS[DISTRICT_COLORS_DICT[pixel.color]].addPixel(pixel)
+                if pixel in boundaryPixels:
+                    boundaryPixels.remove(pixel)
+                # for boundaryPixel in boundaryPixels:
+                #     if boundaryPixel.id == pixel.id:
+                #         boundaryPixels.remove(boundaryPixel)
                 boundaryPixels.append(neighbor)
 
 
@@ -119,13 +129,18 @@ def getVisualMap(map):
 
 
 
-# fig, (ax1, ax2) = plt.subplots(1, 2)
-fig, ax2 = plt.subplots()
+fig, (ax1, ax2) = plt.subplots(1, 2)
+# fig, ax2 = plt.subplots()
 voterMap = generateBlankMap()
 generateDistricts()
 voterMap = generateVoronoiDiagram(voterMap)
-for district in DISTRICTS:
-    district.printInfo()
+districtSplits = []
+def updateDistrcitSplits():
+    for i, district in enumerate(DISTRICTS):
+        district.printInfo()
+        districtSplits.append((district.totalDem/(district.totalDem+district.totalRep), f"District {i+1}", district.color))
+    print()
+    districtSplits.sort(key=lambda x: x[0])
 # Cast back to visual rgb map to find boundaries
 visualMap = getVisualMap(voterMap)
 # ax1.imshow(voterMap)
@@ -133,7 +148,13 @@ boundaryPixels = getBoundaryPixels(visualMap)
 
 
 visualMap = getVisualMap(voterMap)
-        
+
+
+ax1.set_ylabel("% Democrat")
+ax1.set_ylim(0, 1)
+sm = plt.cm.ScalarMappable(cmap='RdBu_r', norm=plt.Normalize(vmin=0, vmax=1))
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=ax1, label="Dem/Rep")
 
 ax2.imshow(visualMap)
 plt.suptitle("Voronoi Diagram for Cities")
@@ -145,7 +166,14 @@ def update(frame):
     visualMap_np = np.array(visualMap, dtype=np.uint8)
     visualMap = visualMap_np.tolist()
     ax2.imshow(visualMap)
+
+    updateDistrcitSplits()
+    bar = ax1.bar([x[1] for x in districtSplits], [x[0] for x in districtSplits], color=plt.cm.RdBu_r(np.array([x[0] for x in districtSplits])))
+    for i, label in enumerate(ax1.get_xticklabels()):
+        label.set_color([x/255.0 for x in districtSplits[i % len(districtSplits)][2]])
+   
+
     return ax2,
 
-ani = FuncAnimation(fig, update, interval=100, blit=False)
+ani = FuncAnimation(fig, update, interval=100, blit=False, cache_frame_data=False)
 plt.show()
