@@ -1,14 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from matplotlib.colors import LinearSegmentedColormap
 from scipy.spatial import Voronoi, distance
 from Representation import Pixel
 from Representation import District
 from random import shuffle
 import time
 
-MAX_X, MAX_Y = 50, 50
-NUM_CITIES = 5
+MAX_X, MAX_Y = 100, 100
+NUM_CITIES = 7
 MAX_POPULATION = 1000
 DISTRICT_CENTERS = [(np.random.randint(MAX_Y), np.random.randint(MAX_X)) for col in range(NUM_CITIES)]
 
@@ -37,7 +38,6 @@ def generateDistricts():
     for i, district in enumerate(DISTRICT_CENTERS):
         DISTRICTS.append(District(district[0], district[1], DISTRICT_COLORS[i], [], 0, 0, 0))
         DISTRICT_COLORS_DICT[DISTRICT_COLORS[i]] = i
-    print(DISTRICT_COLORS_DICT)
 
 
 # Generates voronoi diagram by coloring each pixel in a district a different color
@@ -110,11 +110,9 @@ def randFlipPixels(pixels):
                 pixel.color = neighbor.color
                 # Adding pixel to new district
                 DISTRICTS[DISTRICT_COLORS_DICT[pixel.color]].addPixel(pixel)
-                if pixel in boundaryPixels:
-                    boundaryPixels.remove(pixel)
-                # for boundaryPixel in boundaryPixels:
-                #     if boundaryPixel.id == pixel.id:
-                #         boundaryPixels.remove(boundaryPixel)
+                for boundaryPixel in boundaryPixels:
+                    if boundaryPixel.id == pixel.id:
+                        boundaryPixels.remove(boundaryPixel)
                 boundaryPixels.append(neighbor)
 
 
@@ -127,6 +125,16 @@ def getVisualMap(map):
             visualMap[r][c] = map[r][c].color
     return visualMap
 
+# Updates districtSplits list to hold currect district information
+def updateDistrictSplits():
+    districtSplits = []
+    for i, district in enumerate(DISTRICTS):
+        # district.printInfo()
+        districtSplits.append((district.totalDem/(district.totalDem+district.totalRep), f"District {i+1}", district.color))
+    districtSplits.sort(key=lambda x: x[0])
+    # print()
+    return districtSplits
+
 
 
 fig, (ax1, ax2) = plt.subplots(1, 2)
@@ -134,13 +142,8 @@ fig, (ax1, ax2) = plt.subplots(1, 2)
 voterMap = generateBlankMap()
 generateDistricts()
 voterMap = generateVoronoiDiagram(voterMap)
-districtSplits = []
-def updateDistrcitSplits():
-    for i, district in enumerate(DISTRICTS):
-        district.printInfo()
-        districtSplits.append((district.totalDem/(district.totalDem+district.totalRep), f"District {i+1}", district.color))
-    print()
-    districtSplits.sort(key=lambda x: x[0])
+
+
 # Cast back to visual rgb map to find boundaries
 visualMap = getVisualMap(voterMap)
 # ax1.imshow(voterMap)
@@ -152,7 +155,13 @@ visualMap = getVisualMap(voterMap)
 
 ax1.set_ylabel("% Democrat")
 ax1.set_ylim(0, 1)
-sm = plt.cm.ScalarMappable(cmap='RdBu_r', norm=plt.Normalize(vmin=0, vmax=1))
+# Custom color map Red->LightRed|LightBlue->Blue
+cdict = {'red':     [(0, 0, 1), (0.5, 1, 1), (0.500001, 0.9, 0.9), (1, 0, 0)],
+         'green':   [(0, 0, 0), (0.5, 0.9, 0.9), (0.500001, 0.9, 0.9), (1, 0, 0)],
+         'blue':    [(0, 0, 0), (0.5, 0.9, 0.9), (0.500001, 1, 1), (1, 1, 1)]}
+customCmap = LinearSegmentedColormap('customCmap', cdict)
+# Setting color bar on bar graph
+sm = plt.cm.ScalarMappable(cmap=customCmap, norm=plt.Normalize(vmin=0, vmax=1))
 sm.set_array([])
 cbar = plt.colorbar(sm, ax=ax1, label="Dem/Rep")
 
@@ -167,13 +176,20 @@ def update(frame):
     visualMap = visualMap_np.tolist()
     ax2.imshow(visualMap)
 
-    updateDistrcitSplits()
-    bar = ax1.bar([x[1] for x in districtSplits], [x[0] for x in districtSplits], color=plt.cm.RdBu_r(np.array([x[0] for x in districtSplits])))
+    # Resetting bargraph
+    ax1.clear()
+    ax1.set_ylabel("% Democrat")
+    ax1.set_ylim(0, 1)
+
+    # Populating bar graph with new district info
+    districtSplits = updateDistrictSplits()
+    ax1.bar([x[1] for x in districtSplits], [x[0] for x in districtSplits], color=customCmap(np.array([x[0] for x in districtSplits])))
+    # Updating x-axis labels to match color of districts
     for i, label in enumerate(ax1.get_xticklabels()):
-        label.set_color([x/255.0 for x in districtSplits[i % len(districtSplits)][2]])
-   
+        label.set_color([x/255.0 for x in districtSplits[i][2]])
 
-    return ax2,
 
-ani = FuncAnimation(fig, update, interval=100, blit=False, cache_frame_data=False)
+    return ax2, ax1, 
+
+ani = FuncAnimation(fig, update, interval=500, blit=False, cache_frame_data=False)
 plt.show()
